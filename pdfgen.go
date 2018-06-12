@@ -11,33 +11,33 @@ type PDFDoc struct {
 	Writer        io.Writer
 	width, height float64
 	fontnames     []string
-	objectcount	int
+	objectcount   int
 }
 
-var fontmap = map[string]string{"sans":"Helvetica", "serif":"Times-Roman", "mono":"Courier", "symbol":"Zapf-Dingbats"}
+var fontmap = map[string]string{"sans": "Helvetica", "serif": "Times-Roman", "mono": "Courier", "symbol": "Zapf-Dingbats"}
 
 func NewDoc(w io.Writer, pagewidth, pageheight float64) *PDFDoc {
 	return &PDFDoc{
-		Writer:    w,
-		width:     pagewidth,
-		height:    pageheight,
-		fontnames: []string{fontmap["sans"], fontmap["serif"], fontmap["mono"], fontmap["symbol"]},
+		Writer:      w,
+		width:       pagewidth,
+		height:      pageheight,
+		fontnames:   []string{fontmap["sans"], fontmap["serif"], fontmap["mono"], fontmap["symbol"]},
 		objectcount: 0,
 	}
 }
 
 const (
-	rectfmt = "%s rg %v %v %v %v re f\n"
-	linefmt = "%v w %s RG %v %v m %v %v l S\n"
-	curvefmt = "%v w %s RG %v %v m %v %v %v %v v S\n"
-	endfmt = "trailer\n<</Size %d /Root 1 0 R >>\n%%%%EOF\n"
-	textfmt = "BT /%s %v Tf %v %v Td %s rg (%s) Tj ET\n"
+	rectfmt    = "%s rg %v %v %v %v re f\n"
+	linefmt    = "%v w %s RG %v %v m %v %v l S\n"
+	curvefmt   = "%v w %s RG %v %v m %v %v %v %v v S\n"
+	endfmt     = "trailer\n<</Size %d /Root 1 0 R >>\n%%%%EOF\n"
+	textfmt    = "BT /%s %v Tf %v %v Td %s rg (%s) Tj ET\n"
 	newpagefmt = "%d 0 obj\n<</Type /Page /Parent 1 0 R /Resources 2 0 R /Contents %d 0 R>>\nendobj\n\n%d 0 obj\n<</Length 0>>\nstream\n"
-	colorfmt = "%.1f %.1f %.1f"
-	imagefmt = "<</Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length %d>>\n"
-	pagefmt = "] /Count %d /MediaBox [0 0 %v %v]>>\nendobj\n\n"
-	resfmt = "2 0 obj\n<< /Font\n"
-	fontfmt = "<< /%s << /Type /Font /Subtype /Type1 /BaseFont /%s >>\n"
+	colorfmt   = "%.1f %.1f %.1f"
+	imagefmt   = "<</Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length %d>>\n"
+	pagefmt    = "] /Count %d /MediaBox [0 0 %v %v]>>\nendobj\n\n"
+	resfmt     = "2 0 obj\n<< /Font\n"
+	fontfmt    = "<< /%s << /Type /Font /Subtype /Type1 /BaseFont /%s >>\n"
 )
 
 func (p *PDFDoc) Init(n int) {
@@ -55,7 +55,7 @@ func pdfstring(s string) string {
 }
 
 func (p *PDFDoc) root(npages int) {
-	// Object 1 is the root, object 2 is resources). 
+	// Object 1 is the root, object 2 is resources).
 	// page references begin at 3, with the contents as the next sequential reference.
 	// For example 3 -> 4, 5 -> 6, etc.
 	fmt.Fprintf(p.Writer, "1 0 obj\n<</Type /Catalog /Pages 3 0 R /Kids [")
@@ -71,7 +71,7 @@ func (p *PDFDoc) resources() {
 	f := p.fontnames[0]
 	fmt.Fprint(p.Writer, resfmt)
 	//for _, f := range p.fontnames {
-		fmt.Fprintf(p.Writer, fontfmt, f, f)
+	fmt.Fprintf(p.Writer, fontfmt, f, f)
 	//}
 	fmt.Fprintln(p.Writer, ">>\n>>\nendobj\n")
 	p.objectcount++

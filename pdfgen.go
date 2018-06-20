@@ -21,13 +21,13 @@ type PDFDoc struct {
 var fontmap = map[string]string{"sans": "Helvetica", "serif": "Times-Roman", "mono": "Courier", "symbol": "Zapf-Dingbats"}
 
 const (
-	rectfmt    = "%s rg %.3f %.3f %.3f %.3f re f\n"
-	linefmt    = "%.3f w %s RG %.3f %.3f m %.3f %.3f l S\n"
-	curvefmt   = "%.3f w %s RG %.3f %.3f m %.3f %.3f %.3f %.3f v S\n"
-	arcfmt     = "%.3f %.3f m %.3f %.3f %.3f %.3f v S\n"
-	fillarcfmt = "%.3f %.3f m %.3f %.3f l %.3f %.3f %.3f %.3f v F\n"
+	rectfmt    = "%s rg %.2f %.2f %.2f %.2f re f\n"
+	linefmt    = "%.2f w %s RG %.2f %.2f m %.2f %.2f l S\n"
+	curvefmt   = "%.2f w %s RG %.2f %.2f m %.2f %.2f %.2f %.2f v S\n"
+	arcfmt     = "%.2f %.2f m %.2f %.2f %.2f %.2f v S\n"
+	fillarcfmt = "0 w %s RG %s rg %.2f %.2f m %.2f %.2f l %.2f %.2f %.2f %.2f v b\n"
 	endfmt     = "trailer\n<</Size %d /Root 1 0 R >>\n%%%%EOF\n"
-	textfmt    = "BT /%s %.3f Tf %.3f %.3f Td %s rg (%s) Tj ET\n"
+	textfmt    = "BT /%s %.2f Tf %.2f %.2f Td %s rg (%s) Tj ET\n"
 	newpagefmt = "%d 0 obj\n<</Type /Page /Parent 1 0 R /Resources 2 0 R /Contents %d 0 R>>\nendobj\n\n%d 0 obj\n<</Length 0>>\nstream\n"
 	colorfmt   = "%.3f %.3f %.3f"
 	imagefmt   = "<</Type /XObject\n/Subtype /Image\n/Width %d\n/Height %d\n/ColorSpace /DeviceRGB\n/BitsPerComponent 8\n/Length %d>>\n"
@@ -202,17 +202,16 @@ func arcdata(i int, x, y, w, h, angle1, angle2 float64) (float64, float64, float
 // Arc draws an filled elliptical arc, using a series of quadratic Bezier curves
 func (p *PDFDoc) FillArc(x, y, w, h, angle1, angle2 float64, color string) {
 	const n = 16
-	fmt.Fprintf(p.Writer, "%s rg\n", pdfcolor(color))
 	for i := 0; i < n; i++ {
 		x0, y0, cx, cy, x2, y2 := arcdata(i, x, y, w, h, angle1, angle2)
-		fmt.Fprintf(p.Writer, fillarcfmt, x, y, x0, y0, cx, cy, x2, y2)
+		fmt.Fprintf(p.Writer, fillarcfmt, pdfcolor(color), pdfcolor(color), x, y, x0, y0, cx, cy, x2, y2)
 	}
 }
 
 // Arc strokes an elliptical arc, using a series of quadratic Bezier curves
 func (p *PDFDoc) Arc(x, y, w, h, angle1, angle2, sw float64, color string) {
 	const n = 16
-	fmt.Fprintf(p.Writer, "%s RG %.3f w\n", pdfcolor(color), sw)
+	fmt.Fprintf(p.Writer, "%s RG %.1f w\n", pdfcolor(color), sw)
 	for i := 0; i < n; i++ {
 		x0, y0, cx, cy, x2, y2 := arcdata(i, x, y, w, h, angle1, angle2)
 		fmt.Fprintf(p.Writer, arcfmt, x0, y0, cx, cy, x2, y2)

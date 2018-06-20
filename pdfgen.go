@@ -211,7 +211,7 @@ func (p *PDFDoc) FillArc(x, y, w, h, angle1, angle2 float64, color string) {
 // Arc strokes an elliptical arc, using a series of quadratic Bezier curves
 func (p *PDFDoc) Arc(x, y, w, h, angle1, angle2, sw float64, color string) {
 	const n = 16
-	fmt.Fprintf(p.Writer, "%s RG %.1f w\n", pdfcolor(color), sw)
+	fmt.Fprintf(p.Writer, "%s RG %.2f w\n", pdfcolor(color), sw)
 	for i := 0; i < n; i++ {
 		x0, y0, cx, cy, x2, y2 := arcdata(i, x, y, w, h, angle1, angle2)
 		fmt.Fprintf(p.Writer, arcfmt, x0, y0, cx, cy, x2, y2)

@@ -3,8 +3,11 @@ package pdfgen
 
 import (
 	"fmt"
+	"image"
+	"image/color"
+	_ "image/png"
+	_ "image/jpeg"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"strings"
@@ -31,10 +34,106 @@ const (
 	newpagefmt = "%d 0 obj\n<</Type /Page /Parent 1 0 R /Resources 2 0 R /Contents %d 0 R>>\nendobj\n\n%d 0 obj\n<</Length 0>>\nstream\n"
 	colorfmt   = "%.3f %.3f %.3f"
 	imagefmt   = "<</Type /XObject\n/Subtype /Image\n/Width %d\n/Height %d\n/ColorSpace /DeviceRGB\n/BitsPerComponent 8\n/Length %d>>\n"
+	inlinefmt  = "q %.2f 0 0 %.2f %.2f %.2f cm\nBI /W %d /H %d /CS /RGB /BPC 8\n"
 	pagefmt    = "] /Count %d /MediaBox [0 0 %v %v]>>\nendobj\n\n"
 	resfmt     = "2 0 obj\n<< /Font\n"
 	fontfmt    = "<< /%s << /Type /Font /Subtype /Type1 /BaseFont /%s >>\n"
 )
+
+func imagestream(w io.Writer, r io.Reader) error {
+	img, _, err := image.Decode(r)
+	switch i := img.(type) {
+		case *image.RGBA:
+			encodeRGBAStream(w, i)
+		case *image.NRGBA:
+			encodeNRGBAStream(w, i)
+		case *image.YCbCr:
+			encodeYCbCrStream(w, i)
+		default:
+			encodeImageStream(w, i)
+		}
+	return err
+}
+
+func encodeImageStream(w io.Writer, img image.Image) error {
+	bd := img.Bounds()
+	row := make([]byte, bd.Dx()*3)
+	for y := bd.Min.Y; y < bd.Max.Y; y++ {
+		i := 0
+		for x := bd.Min.X; x < bd.Max.X; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			if a != 0 {
+				row[i+0] = uint8((r * 65535 / a) >> 8)
+				row[i+1] = uint8((g * 65535 / a) >> 8)
+				row[i+2] = uint8((b * 65535 / a) >> 8)
+			} else {
+				row[i+0] = 0
+				row[i+1] = 0
+				row[i+2] = 0
+			}
+			i += 3
+		}
+		if _, err := w.Write(row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func encodeNRGBAStream(w io.Writer, img *image.NRGBA) error {
+	buf := make([]byte, 3*img.Rect.Dx()*img.Rect.Dy())
+	for i, j := 0, 0; i < len(img.Pix); i, j = i+4, j+3 {
+		buf[j+0] = img.Pix[i+0]
+		buf[j+1] = img.Pix[i+1]
+		buf[j+2] = img.Pix[i+2]
+	}
+	_, err := w.Write(buf)
+	return err
+}
+
+func encodeRGBAStream(w io.Writer, img *image.RGBA) error {
+	buf := make([]byte, 3*img.Rect.Dx()*img.Rect.Dy())
+	var a uint16
+	for i, j := 0, 0; i < len(img.Pix); i, j = i+4, j+3 {
+		a = uint16(img.Pix[i+3])
+		if a != 0 {
+			buf[j+0] = byte(uint16(img.Pix[i+0]) * 0xff / a)
+			buf[j+1] = byte(uint16(img.Pix[i+1]) * 0xff / a)
+			buf[j+2] = byte(uint16(img.Pix[i+2]) * 0xff / a)
+		}
+	}
+	_, err := w.Write(buf)
+	return err
+}
+
+
+func encodeYCbCrStream(w io.Writer, img *image.YCbCr) error {
+	var yy, cb, cr uint8
+	var i, j int
+	dx, dy := img.Rect.Dx(), img.Rect.Dy()
+	buf := make([]byte, 3*dx*dy)
+	bi := 0
+	for y := 0; y < dy; y++ {
+		for x := 0; x < dx; x++ {
+			i, j = x, y
+			switch img.SubsampleRatio {
+			case image.YCbCrSubsampleRatio420:
+				j /= 2
+				fallthrough
+			case image.YCbCrSubsampleRatio422:
+				i /= 2
+			}
+			yy = img.Y[y*img.YStride+x]
+			cb = img.Cb[j*img.CStride+i]
+			cr = img.Cr[j*img.CStride+i]
+
+			buf[bi+0], buf[bi+1], buf[bi+2] = color.YCbCrToRGB(yy, cb, cr)
+			bi += 3
+		}
+	}
+	_, err := w.Write(buf)
+	return err
+}
 
 // NewDoc initializes the document structure.
 func NewDoc(w io.Writer, pagewidth, pageheight float64) *PDFDoc {
@@ -49,7 +148,7 @@ func NewDoc(w io.Writer, pagewidth, pageheight float64) *PDFDoc {
 
 // Init begins the document.
 func (p *PDFDoc) Init(n int) {
-	fmt.Fprintln(p.Writer, "%PDF-1.5")
+	fmt.Fprintln(p.Writer, "%PDF-1.7")
 	p.root(n)
 	p.resources()
 }
@@ -125,16 +224,24 @@ func (p *PDFDoc) Text(x, y float64, s, font string, size float64, color string) 
 }
 
 // Image places an image at the (x,y) location
-func (p *PDFDoc) Image(x, y float64, width, height int, name string) {
+func (p *PDFDoc) Image(x, y float64, width, height int, scale float64, name string) {
 	r, err := os.Open(name)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
-	data, err := ioutil.ReadAll(r)
-	fmt.Fprintf(p.Writer, imagefmt, width, height, len(data))
-	fmt.Fprintf(p.Writer, "stream\n")
-	io.WriteString(p.Writer, string(data))
-	fmt.Fprintf(p.Writer, "\nendstream\n")
+	fw := float64(width) * (scale / 100)
+	fh := float64(height) * (scale / 100)
+	fmt.Fprintf(p.Writer, inlinefmt, fw, fh, x, y, width, height)
+	fmt.Fprintf(p.Writer, "ID ")
+	err = imagestream(p.Writer, r)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		return
+	}
+	//io.Copy(p.Writer, r)
+	fmt.Fprintf(p.Writer, " EI\nQ\n")
+	r.Close()
 }
 
 // Polygon draws a colored polygon

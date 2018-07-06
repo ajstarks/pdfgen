@@ -6,9 +6,11 @@ for the deck package.
 Elenents generated include:
 
 * text
-* lines
-* polygons
+* line
+* arc
+* quadratic bezier curve
+* polygon
+* ellipse
 * rectangle
-* Quadratic Bezier curves
-
+* images
 
